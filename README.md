@@ -8,8 +8,9 @@ A static market research terminal for US, Canadian and South Korean stocks, publ
 
 - The default universe is **US$1 billion+ market cap**, across every country. Change the cap dropdown or choose Any market cap; Reset restores US$1B+. Unknown USD market caps are excluded while a minimum is active. This is a size filter, not a guarantee of business quality.
 - Choose a country, then screen by English company/ticker, detailed industry, technical setup, minimum momentum score or a quick filter.
-- Click a company or table row to update the persistent research sidebar: TradingView chart, fundamentals, score components, news, industry evidence and insider/disclosure coverage. Research tabs preserve the chart. On smaller screens, research appears below the table. Company logos appear beside names, with initials when unavailable. The table includes USD market cap, industry and 1D/1W/1M/3M returns; scroll within the table for additional columns.
-- Open **Industry radar** for a ranked industry comparison linked to an industry detail panel. Search industries, filter by strength/participation, change minimum membership, sort by momentum/return/breadth/score change, and compare 1W/1M/3M returns. The default includes industries with at least three scored stocks. Select a row for trend participation, positive-return counts and leading companies with logos, USD caps and returns. Click a company for sidebar research or screen the entire industry. Country and cap settings are shared with the screener.
+- Click a company or table row to update the persistent research sidebar: the original six-month daily-close line/area chart, fundamentals, score components, news, signal history and insider/disclosure coverage. On smaller screens, research appears below the table. Logos appear beside English names, with initials when unavailable. The table includes USD market cap, industry, returns and repeat-signal counts.
+- Open **Industry radar** for the original bubble chart: vertical position = average momentum, horizontal position = trend breadth, circle size = member count. It shows the 10 strongest industries with at least three scored stocks. Click a bubble or legend to screen its members. Cards below cover all industries. Country and USD cap filters are shared with the screener.
+- Choose **Recurring signals** for a signal active on at least 3 of the last 10 observed market sessions, including the latest observation. **Fresh repeat** finds a signal that switched off and then back on after an earlier hit. Click the **Repeat signals** column or the sidebar’s **Signals** tab to inspect dated hits, misses and missing observations.
 - Star stocks to save a watchlist. Add a thesis in **Story & news**. Both live only in that browser and do not sync or become public.
 - Use **Accelerating** to find scores up at least 3 points since the preceding successful scan day. This needs snapshots from two different days.
 - Export the current filtered results as CSV. Press `/` to search.
@@ -26,7 +27,7 @@ Ranks always use the complete eligible country cohort, not the currently filtere
 
 Industry membership uses the exact **FactSet industry** field supplied by TradingView, with one industry per company. These are detailed industries, not broad sector/industry groups. They are **not GICS** classifications; GICS labels are not inferred or fabricated. Company names are requested in English. Korean names are used internally only for local news searches.
 
-Curated narrative tags (for explicitly mapped companies) and unverified headline keyword signals remain separate from industry classification. Headlines can never reclassify a company. Industry score is an equal-weight average of member momentum scores; breadth is the fraction of scored members with available trend data above at least two moving averages. Missing trend and return observations are excluded from their respective denominators. Radar participation categories use score 60 and breadth 60% as descriptive thresholds: broad strength is above both, narrow strength only above the score threshold, building breadth only above the breadth threshold, and weak participation below both. Threshold equality counts as above. These categories describe the current snapshot and do not assert a time trend or a forecast. UI aggregates respect the USD cap filter; displayed daily changes average available member score changes. The saved industry-history taxonomy starts at classification version 2, and comparisons do not cross the taxonomy change.
+Curated narrative tags (for explicitly mapped companies) and unverified headline keyword signals remain separate from industry classification. Headlines can never reclassify a company. Industry score is an equal-weight average of member momentum scores; breadth is the fraction of scored members with available trend data above at least two moving averages. Missing trend and return observations are excluded from their respective denominators. UI aggregates respect the USD cap filter; displayed daily changes average available member score changes. The saved industry-history taxonomy starts at classification version 2, and comparisons do not cross the taxonomy change.
 
 Market caps are requested using TradingView's explicit `price_conversion: {"to_currency": "usd"}`. This converts fundamental-price fields, while quotes stay in their listing currency. `marketCapUsd` and `marketCapCurrency: "USD"` identify the unit; legacy `marketCap` is a USD alias in schema version 2. No local-currency market cap is silently interpreted as USD.
 
@@ -37,9 +38,8 @@ Market caps are requested using TradingView's explicit `price_conversion: {"to_c
 | --- | --- | --- |
 | TradingView scanner | Prices, returns, volume, averages, RSI, market cap, revenue growth, P/E, earnings dates, company logo IDs | Unofficial scanner interface; not a supported public market-data API; availability/entitlements may change. Delayed/as available; collection time is not an exchange quote timestamp. |
 | Google News RSS | Up to eight headlines, publishers, timestamps and source links | Top 15 stocks above US$1B per market and configured focus symbols; seven-day search; no full articles. Search matches can be unrelated. Korean names are retrieved for Korean searches. |
-| TradingView chart widget | Interactive candles, volume, timeframes and drawing tools in the sidebar | Loads for the selected stock in English. US and Canadian charts embed in the sidebar. Korean chart embeds are restricted by TradingView; Korean stocks link to the full TradingView chart in a new tab and retain research in the sidebar. Exchange availability and delays depend on TradingView. |
 | TradingView symbol logos | Provider logo IDs resolve to SVG images on `s3-symbol-logo.tradingview.com` | Loaded directly in the browser; absent or failed logos show company initials. |
-| Yahoo Finance | Supplemental daily closes in the dataset | Retained for enriched symbols; the interface uses the TradingView widget. |
+| Yahoo Finance | Six months of daily closes for daily leaders/focus stocks; session dates from SPY, XIU.TO and KOSPI benchmarks | Original native SVG chart; no embedded TradingView widget. Unadjusted closes may differ from scanner prices. Previously collected charts are retained with their original end date if not refreshed. Stocks without collected history show an explicit empty state and an external full-chart link. Benchmark failure suppresses new signal observations. |
 | Nasdaq insider activity | Up to 15 recent reported transactions for enriched US issuers | No API key; best effort. Source transaction labels retained. Automatic sales and non-open-market acquisitions are distinct; zero/unknown prices do not imply zero transaction value. |
 | SEC EDGAR | Recent issuer filings and up to five Form 4 filings within 90 days per enriched US issuer | Needs a declared contact user-agent. Non-derivative transactions are parsed; awards, withholding, gifts, exercises, purchases and sales are distinct. This is not an exhaustive insider ledger. Form 4/A is linked but not merged into transaction records. |
 | Korea DART | Officer/major-holder ownership reports | Needs a DART API key. Reported holdings changes are not asserted to be market trades. |
@@ -51,9 +51,25 @@ Every market keeps its own collection timestamp and failure state. Failed market
 
 History is retained for up to 90 successful full-market scan days in `site/data/history.json`. One record per UTC day is retained; a rerun replaces that day's record. A partial-market run is not used as a full-day comparison baseline. Historical scores are not reconstructed or backtested. The interface downloads only a compact seven-day score trail in `recent.json`, keeping load size bounded as the archive grows.
 
+## Recurring momentum signals
+
+The daily GitHub Actions scan saves `site/data/signals.json`, retaining up to 90 **unique exchange sessions per country**. The latest snapshot carries a compact 10-session trail for each stock; the browser never downloads the full signal archive. Existing UTC-day score history remains separate and is not used to reconstruct these signals.
+
+| Signal | A hit means |
+| --- | --- |
+| Strong momentum | Country-relative momentum score ≥ 80 |
+| Volume thrust | Relative volume ≥ 2× and daily return > 0 |
+| Breakout pressure | Price ≥ 97% of its 52-week high and relative volume ≥ 1.3× |
+
+**Recurring:** the same signal hits on at least 3 of the last 10 observed sessions and is on in the latest observation. Different signal types are never added together. **Fresh repeat:** an observed off → on transition, with at least one earlier hit for that same signal in the window; two hits can qualify. **Streak:** consecutive observed hits for the same signal. A missing stock/input breaks a streak and cannot establish an off → on transition. The sidebar shows hit/known counts separately for each signal and dates for every observation. CSV exports include the signal as-of date and window size.
+
+The scanner verifies the last daily bar and quote date in each benchmark’s exchange timezone, rejects unsettled/intraday, mismatched or stale benchmarks, and records the first successful observation of a completed session. Reruns, weekends and holidays cannot append duplicate dates or rewrite an existing observation. Failed market scans or unverified session dates add no record and suppress current recurring/fresh-repeat flags; historical evidence remains dated and visible. Missed scans can leave gaps, so “observed sessions” does not imply every trading session was captured. Signals describe the latest verified observation, not a live feed.
+
+History starts at activation. The previous archive lacks full signal inputs and exchange-session timestamps, so no historical recurrence is fabricated. The first observation is September 11, 2026; more sessions accumulate through scheduled pulls. These are transparent screening rules, not a backtested forecast.
+
 ## Configure extra coverage
 
-Edit `config.json` and add exchange-qualified identifiers to `focusSymbols`, such as `NASDAQ:NVDA`, `TSX:CCO` or `KRX:005930`. This adds daily news and insider enrichment for those issuers, even outside the top 15 stocks above US$1B. Interactive TradingView charts load for any selected symbol; supplemental Yahoo history is still collected for enriched issuers. Browser stars do not modify the server-side focus list.
+Edit `config.json` and add exchange-qualified identifiers to `focusSymbols`, such as `NASDAQ:NVDA`, `TSX:CCO` or `KRX:005930`. This adds daily news and insider enrichment for those issuers, even outside the top 15 stocks above US$1B. The original sidebar chart uses saved Yahoo daily closes. Daily leaders and configured focus symbols receive fresh history; older collected series are retained with their original end dates. Browser stars do not modify the server-side focus list.
 
 In GitHub **Settings → Secrets and variables → Actions**, optionally add:
 
@@ -95,5 +111,3 @@ Actions must have permission to write repository contents; branch protection can
 Use upstream data subject to its applicable terms and licensing. This project does not grant redistribution rights to third-party market data.
 
 Industry source: https://www.tradingview.com/support/solutions/43000724300-sector-industry/
-
-Chart embed documentation: https://www.tradingview.com/widget-docs/widgets/charts/advanced-chart/

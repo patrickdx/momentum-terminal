@@ -18,6 +18,8 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 
+from signals import BENCHMARKS, closed_session, update_market
+
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'site' / 'data'
 COUNTRIES = {'US': 'america', 'CA': 'canada', 'KR': 'korea'}
@@ -432,6 +434,13 @@ def main():
                     s['insider'] = dart_for(s, codes[s['symbol']], key)
             except Exception:
                 s['insider']['status'] += ' Additional filings source unavailable during this scan.'
+    previous_stocks = {s['id']: s for m in previous.get('markets', {}).values() for s in m.get('stocks', [])}
+    for market in snapshot['markets'].values():
+        for stock in market['stocks']:
+            old = previous_stocks.get(stock['id'], {})
+            if not stock.get('chart') and old.get('chart') and old.get('currency') == stock.get('currency'):
+                stock['chart'] = old['chart']
+                stock['chartStatus'] = 'Retained Yahoo daily closes through ' + old['chart'][-1]['date'] + '; fresh history not collected in this scan.'
     snapshot['sources'] = [
         {'name': 'TradingView scanner', 'status': 'Partial failure' if failed else 'Connected', 'detail': 'Market caps explicitly converted to USD; quotes remain in listing currency. English company names and FactSet industries. Unofficial scanner interface.', 'url': 'https://www.tradingview.com/screener/'},
         {'name': 'Google News RSS', 'status': 'Best effort', 'detail': f'Top {args.enrich} above US$1B per market + configured focus symbols. Headlines and links only; keyword matching is not causal analysis.', 'url': 'https://news.google.com/'},
@@ -471,6 +480,25 @@ def main():
     write_json(DATA / 'recent.json', [{'date': h['date'], 'stocks': {
         symbol: {'score': record.get('score'), 'rank': record.get('rank')}
         for symbol, record in h['stocks'].items()}} for h in history[-7:]])
+    signal_file = DATA / 'signals.json'
+    archive = json.loads(signal_file.read_text()) if signal_file.exists() else {'version': 1, 'markets': {}}
+    for country, market in snapshot['markets'].items():
+        session = None
+        if country not in failed:
+            try:
+                symbol = BENCHMARKS[country][0]
+                response = fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + urllib.parse.quote(symbol) + '?range=5d&interval=1d')
+                session = closed_session(response, country, market['asOf'])
+                market['signalStatus'] = 'Tracking completed sessions; benchmark ' + symbol + '.'
+            except Exception as e:
+                market['signalStatus'] = 'Session date could not be verified (' + type(e).__name__ + '); no new signal observation.'
+        else:
+            market['signalStatus'] = 'Market scan failed; no new signal observation.'
+        archive['markets'][country] = update_market(market, archive['markets'].get(country, []), session)
+        print(country, 'signal sessions:', len(market['signalSessions']), 'latest:', market['signalAsOf'],
+              'recurring:', sum(s['recurring'] for s in market['stocks']),
+              'fresh repeats:', sum(s['renewed'] for s in market['stocks']), flush=True)
+    write_json(signal_file, archive)
     write_json(DATA / 'latest.json', snapshot)
     print('Snapshot saved:', snapshot['generatedAt'], flush=True)
     if failed:
