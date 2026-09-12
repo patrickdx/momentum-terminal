@@ -152,6 +152,8 @@ def scan_country(country):
 def news_for(s):
     region = {'US': ('en-US', 'US', 'US:en'), 'CA': ('en-CA', 'CA', 'CA:en'), 'KR': ('ko', 'KR', 'KR:ko')}[s['country']]
     company = re.sub(r'\b(Corporation|Corp\.?|Inc\.?|Ltd\.?|Limited|Holdings?|Co\.?)\b', '', s['name'], flags=re.I).strip(' .,')
+    company = re.sub(r'\s+(Class\s+[A-Z]|Common Stock|Common Shares|Ordinary Shares|Registered Shs).*$', '', company, flags=re.I).strip(' .,')
+    company = re.sub(r'\s+', ' ', company)
     query = f'"{company or s["name"]}" stock when:7d'
     # Korea uses local coverage where possible; ticker also helps disambiguate English issuer names.
     if s['country'] == 'KR':
