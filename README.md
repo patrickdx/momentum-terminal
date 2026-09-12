@@ -6,9 +6,10 @@ A static market research terminal for US, Canadian and South Korean stocks, publ
 
 ## Use the terminal
 
-- Choose a country, then screen by company/ticker, theme, technical setup, minimum momentum score or a quick filter.
-- Click a company for six-month price history, fundamentals, score components, news, theme evidence and insider/disclosure coverage.
-- Open **Theme radar** to compare momentum with participation. Theme cards link back to their constituent stocks.
+- The default universe is **US$1 billion+ market cap**, across every country. Change the cap dropdown or choose Any market cap; Reset restores US$1B+. Unknown USD market caps are excluded while a minimum is active. This is a size filter, not a guarantee of business quality.
+- Choose a country, then screen by English company/ticker, detailed industry, technical setup, minimum momentum score or a quick filter.
+- Click a company or table row to open its research card: interactive TradingView candlestick chart, fundamentals, score components, news, industry evidence and insider/disclosure coverage. Escape, the close button, or the backdrop closes it. Research tabs preserve the chart. The expanded table includes USD market cap, industry and 1D/1W/1M/3M returns.
+- Open **Industry radar** to compare momentum with participation within the selected market-cap universe. The chart shows the strongest 10 industries with at least three members; cards cover all industries. Click a leader to open its stock card.
 - Star stocks to save a watchlist. Add a thesis in **Story & news**. Both live only in that browser and do not sync or become public.
 - Use **Accelerating** to find scores up at least 3 points since the preceding successful scan day. This needs snapshots from two different days.
 - Export the current filtered results as CSV. Press `/` to search.
@@ -23,15 +24,21 @@ Ranks always use the complete eligible country cohort, not the currently filtere
 - **Trending:** above at least two moving averages and positive one-month return.
 - **Extended:** more than 15% above the 20-day average, taking priority over other setups.
 
-Theme membership combines industry/company keywords, an explicit mapping of selected issuers, and keywords in retrieved headlines. It does not establish causality or verified sentiment. Theme score is an equal-weight average of member scores; breadth is the fraction above at least two averages. Multiple theme membership is allowed. Theme returns are descriptive member averages, not investable portfolio returns.
+Industry membership uses the exact **FactSet industry** field supplied by TradingView, with one industry per company. These are detailed industries, not broad sector/industry groups. They are **not GICS** classifications; GICS labels are not inferred or fabricated. Company names are requested in English. Korean names are used internally only for local news searches.
+
+Curated narrative tags (for explicitly mapped companies) and unverified headline keyword signals remain separate from industry classification. Headlines can never reclassify a company. Industry score is an equal-weight average of member momentum scores; breadth is the fraction above at least two moving averages. UI aggregates respect the USD cap filter; displayed daily changes average available member score changes. The saved industry-history taxonomy starts at classification version 2, and comparisons do not cross the taxonomy change.
+
+Market caps are requested using TradingView's explicit `price_conversion: {"to_currency": "usd"}`. This converts fundamental-price fields, while quotes stay in their listing currency. `marketCapUsd` and `marketCapCurrency: "USD"` identify the unit; legacy `marketCap` is a USD alias in schema version 2. No local-currency market cap is silently interpreted as USD.
+
 
 ## Coverage and data provenance
 
 | Source | What is collected | Limits |
 | --- | --- | --- |
 | TradingView scanner | Prices, returns, volume, averages, RSI, market cap, revenue growth, P/E, earnings dates | Unofficial scanner interface; not a supported public market-data API; availability/entitlements may change. Delayed/as available; collection time is not an exchange quote timestamp. |
-| Google News RSS | Up to eight headlines, publishers, timestamps and source links | Top 15 stocks per market and configured focus symbols; seven-day search; no full articles. Search matches can be unrelated. Korean names are retrieved for Korean searches. |
-| Yahoo Finance | Up to six months of daily unadjusted closes | Same enriched stocks; best effort; splits and differing timestamps can affect comparison with scanner prices. |
+| Google News RSS | Up to eight headlines, publishers, timestamps and source links | Top 15 stocks above US$1B per market and configured focus symbols; seven-day search; no full articles. Search matches can be unrelated. Korean names are retrieved for Korean searches. |
+| TradingView chart widget | Interactive candles, volume, timeframes and drawing tools in the stock card | Loads on demand in English. Exchange availability and delays depend on TradingView. An external chart link remains available. |
+| Yahoo Finance | Supplemental daily closes in the dataset | Retained for enriched symbols; the interface uses the TradingView widget. |
 | Nasdaq insider activity | Up to 15 recent reported transactions for enriched US issuers | No API key; best effort. Source transaction labels retained. Automatic sales and non-open-market acquisitions are distinct; zero/unknown prices do not imply zero transaction value. |
 | SEC EDGAR | Recent issuer filings and up to five Form 4 filings within 90 days per enriched US issuer | Needs a declared contact user-agent. Non-derivative transactions are parsed; awards, withholding, gifts, exercises, purchases and sales are distinct. This is not an exhaustive insider ledger. Form 4/A is linked but not merged into transaction records. |
 | Korea DART | Officer/major-holder ownership reports | Needs a DART API key. Reported holdings changes are not asserted to be market trades. |
@@ -45,7 +52,7 @@ History is retained for up to 90 successful full-market scan days in `site/data/
 
 ## Configure extra coverage
 
-Edit `config.json` and add exchange-qualified identifiers to `focusSymbols`, such as `NASDAQ:NVDA`, `TSX:CCO` or `KRX:005930`. This adds daily news/chart enrichment for those issuers. Browser stars do not modify the server-side focus list.
+Edit `config.json` and add exchange-qualified identifiers to `focusSymbols`, such as `NASDAQ:NVDA`, `TSX:CCO` or `KRX:005930`. This adds daily news and insider enrichment for those issuers, even outside the top 15 stocks above US$1B. Interactive TradingView charts load for any selected symbol; supplemental Yahoo history is still collected for enriched issuers. Browser stars do not modify the server-side focus list.
 
 In GitHub **Settings → Secrets and variables → Actions**, optionally add:
 
@@ -85,3 +92,7 @@ Actions must have permission to write repository contents; branch protection can
 - Scheduled workflow behavior: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
 
 Use upstream data subject to its applicable terms and licensing. This project does not grant redistribution rights to third-party market data.
+
+Industry source: https://www.tradingview.com/support/solutions/43000724300-sector-industry/
+
+Chart embed documentation: https://www.tradingview.com/widget-docs/widgets/charts/advanced-chart/

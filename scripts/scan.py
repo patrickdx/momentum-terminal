@@ -27,7 +27,7 @@ COLUMNS = ['name', 'description', 'close', 'change', 'volume', 'Perf.W', 'Perf.1
            'RSI', 'earnings_release_next_date', 'price_earnings_ttm',
            'total_revenue_yoy_growth_ttm', 'average_volume_10d_calc', 'exchange']
 FIELDS = ['symbol', 'name', 'price', 'day', 'volume', 'week', 'month', 'quarter',
-          'rvol', 'sma20', 'sma50', 'sma200', 'high52', 'marketCap', 'sector',
+          'rvol', 'sma20', 'sma50', 'sma200', 'high52', 'marketCapUsd', 'sector',
           'industry', 'currency', 'rsi', 'earnings', 'pe', 'revenueGrowth', 'avgVolume', 'exchange']
 WEIGHTS = {'month': 25, 'quarter': 25, 'week': 15, 'rvol': 15, 'trend': 10, 'nearHigh': 10}
 THEMES = {
@@ -113,6 +113,7 @@ def scan_country(country):
     payload = {'filter': [{'left': 'type', 'operation': 'equal', 'right': 'stock'},
                            {'left': 'is_primary', 'operation': 'equal', 'right': True},
                            {'left': 'typespecs', 'operation': 'has', 'right': ['common']}],
+               'options': {'lang': 'en'}, 'price_conversion': {'to_currency': 'usd'},
                'columns': COLUMNS, 'sort': {'sortBy': 'market_cap_basic', 'sortOrder': 'desc'}, 'range': [0, 5000]}
     response = fetch(f'https://scanner.tradingview.com/{COUNTRIES[country]}/scan', payload)
     # Page through the complete common-share universe, with a defensive 20,000-row ceiling.
@@ -130,6 +131,9 @@ def scan_country(country):
         seen.add(row['s'])
         s = dict(zip(FIELDS, row['d']))
         s.update(id=row['s'], country=country)
+        # TradingView conversion applies to fundamental-price fields, not quote prices.
+        s['marketCapCurrency'] = 'USD'
+        s['marketCap'] = s.get('marketCapUsd')  # Legacy field; explicitly USD from schema v2 onward.
         if not number(s.get('price')) or s['price'] <= 0 or not number(s.get('avgVolume')):
             continue
         s['turnover'] = s['price'] * s['avgVolume']
@@ -138,7 +142,7 @@ def scan_country(country):
         s['asOf'] = now()
         s['source'] = 'TradingView scanner'
         s['news'] = []
-        s['newsStatus'] = 'Not collected: daily enrichment covers the top 15 and configured focus symbols per market.'
+        s['newsStatus'] = 'Not collected: daily enrichment covers the top 15 stocks above US$1B and configured focus symbols per market.'
         s['chart'] = []
         s['chartStatus'] = 'Historical chart not collected.'
         s['insider'] = {'status': 'Not connected', 'transactions': [], 'filings': []}
@@ -308,26 +312,25 @@ def dart_for(s, code, key):
 
 
 def tag_stock(s):
-    base = ' '.join(str(s.get(k, '')) for k in ('name', 'sector', 'industry')).lower()
-    tags, evidence = [], []
+    # Stable, exact provider industry. News never changes the company's classification.
+    industry = s.get('industry') or 'Unclassified'
+    s['themes'] = [industry]
+    s['classificationSource'] = 'FactSet industry via TradingView'
+    s['themeEvidence'] = [{'theme': industry, 'basis': 'FactSet industry classification',
+                           'keyword': None, 'headlines': 0}]
+    s['narratives'] = OVERRIDES.get(s['id'], [])
+    s['catalysts'] = []
     for theme, keywords in THEMES.items():
-        match = next((k for k in keywords if k in base), None)
-        # Publisher names such as Yahoo Finance are not evidence of a financials narrative.
         headlines = [n for n in s.get('news', []) if any(
             re.search(r'(?<!\w)' + re.escape(k) + r'(?!\w)', n['title'].rsplit(' - ', 1)[0].lower())
             for k in keywords if k not in ('finance', 'consumer', 'industrial', 'internet', 'banks'))]
-        curated = theme in OVERRIDES.get(s['id'], [])
-        if match or headlines or curated:
-            tags.append(theme)
-            evidence.append({'theme': theme, 'basis': 'Headline keyword match' if headlines else 'Company/industry mapping',
-                             'keyword': match, 'headlines': len(headlines)})
-    s['themes'] = tags or ['Other']
-    s['themeEvidence'] = evidence
+        if headlines:
+            s['catalysts'].append({'name': theme, 'headlineCount': len(headlines), 'basis': 'Unverified headline keyword signal'})
 
 
 def aggregate(stocks):
     results = []
-    for name in list(THEMES) + ['Other']:
+    for name in sorted({theme for s in stocks for theme in s['themes']}):
         members = [s for s in stocks if name in s['themes'] and s['score'] is not None]
         if not members:
             continue
@@ -353,7 +356,7 @@ def main():
     parser.add_argument('--no-enrich', action='store_true')
     args = parser.parse_args()
     previous = json.loads((DATA / 'latest.json').read_text()) if (DATA / 'latest.json').exists() else {'markets': {}}
-    snapshot = {'schemaVersion': 1, 'generatedAt': now(), 'mode': 'snapshot', 'markets': {}, 'sources': [], 'warnings': []}
+    snapshot = {'schemaVersion': 2, 'classificationVersion': 2, 'generatedAt': now(), 'mode': 'snapshot', 'markets': {}, 'sources': [], 'warnings': []}
     failed = []
     for country in COUNTRIES:
         try:
@@ -370,7 +373,9 @@ def main():
     for country, market in snapshot['markets'].items():
         if country in failed:
             continue
-        selected.extend([s for i, s in enumerate(market['stocks']) if i < args.enrich or s['id'] in focus])
+        eligible = [s for s in market['stocks'] if number(s.get('marketCapUsd')) and s['marketCapUsd'] >= 1e9]
+        leaders = {s['id'] for s in eligible[:args.enrich]}
+        selected.extend([s for s in market['stocks'] if s['id'] in leaders or s['id'] in focus])
     if not args.no_enrich:
         korean = [s for s in selected if s['country'] == 'KR']
         if korean:
@@ -428,8 +433,8 @@ def main():
             except Exception:
                 s['insider']['status'] += ' Additional filings source unavailable during this scan.'
     snapshot['sources'] = [
-        {'name': 'TradingView scanner', 'status': 'Partial failure' if failed else 'Connected', 'detail': 'Primary common stocks; delayed/as available snapshots. Unofficial, unsupported scanner interface.', 'url': 'https://www.tradingview.com/screener/'},
-        {'name': 'Google News RSS', 'status': 'Best effort', 'detail': f'Top {args.enrich} per market + configured focus symbols. Headlines and links only; keyword matching is not causal analysis.', 'url': 'https://news.google.com/'},
+        {'name': 'TradingView scanner', 'status': 'Partial failure' if failed else 'Connected', 'detail': 'Market caps explicitly converted to USD; quotes remain in listing currency. English company names and FactSet industries. Unofficial scanner interface.', 'url': 'https://www.tradingview.com/screener/'},
+        {'name': 'Google News RSS', 'status': 'Best effort', 'detail': f'Top {args.enrich} above US$1B per market + configured focus symbols. Headlines and links only; keyword matching is not causal analysis.', 'url': 'https://news.google.com/'},
         {'name': 'Yahoo Finance', 'status': 'Best effort', 'detail': 'Six months of daily closes for enriched symbols. Historical prices may use a different venue or timestamp.', 'url': 'https://finance.yahoo.com/'},
         {'name': 'Nasdaq insider activity', 'status': 'Best effort', 'detail': 'Up to 15 recent reported insider transactions for enriched US symbols; original source transaction labels retained. No API key required.', 'url': 'https://www.nasdaq.com/market-activity/insiders'},
         {'name': 'SEC EDGAR', 'status': 'Configured' if os.getenv('SEC_USER_AGENT') else 'Setup required', 'detail': 'Set SEC_USER_AGENT with your name and contact email in repository secrets. Bounded US Form 4 transactions and issuer filings.', 'url': 'https://www.sec.gov/edgar/search/'},
@@ -440,7 +445,7 @@ def main():
     today = datetime.now(timezone.utc).date().isoformat()
     baseline = next((h for h in reversed(history) if h['date'] < today), None)
     baseline_stocks = (baseline or {}).get('stocks', {})
-    day_record = {'date': today, 'stocks': {}, 'themes': {}}
+    day_record = {'date': today, 'classificationVersion': 2, 'stocks': {}, 'themes': {}}
     for country, market in snapshot['markets'].items():
         for s in market['stocks']:
             tag_stock(s)
@@ -452,7 +457,7 @@ def main():
                 day_record['stocks'][s['id']] = {k: s.get(k) for k in ['score', 'rank', 'price', 'themes']}
         market['themes'] = aggregate(market['stocks'])
         for theme in market['themes']:
-            old = ((baseline or {}).get('themes', {}).get(country, {}).get(theme['name']))
+            old = ((baseline or {}).get('themes', {}).get(country, {}).get(theme['name'])) if (baseline or {}).get('classificationVersion') == 2 else None
             theme['delta'] = round(theme['score'] - old['score'], 1) if old and country not in failed else None
         if country not in failed:
             day_record['themes'][country] = {t['name']: {'score': t['score'], 'breadth': t['breadth']} for t in market['themes']}

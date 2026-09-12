@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('scan', Path(__file__).resolve().parents[1] / 'scripts/scan.py')
 scan = importlib.util.module_from_spec(spec)
@@ -57,14 +58,36 @@ class MomentumTests(unittest.TestCase):
     def test_no_theme_evidence_does_not_invent_story(self):
         s = {'id': 'TEST:X', 'name': 'Unknown', 'sector': '', 'industry': '', 'news': []}
         scan.tag_stock(s)
-        self.assertEqual(s['themes'], ['Other'])
-        self.assertEqual(s['themeEvidence'], [])
+        self.assertEqual(s['themes'], ['Unclassified'])
+        self.assertEqual(s['narratives'], [])
 
     def test_news_publisher_is_not_company_theme_evidence(self):
         s = {'id': 'TEST:X', 'name': 'Example retailer', 'sector': 'Retail Trade', 'industry': 'Apparel',
              'news': [{'title': 'Example retailer reports sales - Yahoo Finance'}]}
         scan.tag_stock(s)
         self.assertNotIn('Financials', s['themes'])
+        self.assertEqual(s['themes'], ['Apparel'])
+
+    def test_headlines_cannot_reclassify_a_company(self):
+        s = {'id': 'TEST:X', 'industry': 'Regional Banks', 'news': [{'title': 'Bank finances nuclear project - News'}]}
+        scan.tag_stock(s)
+        self.assertEqual(s['themes'], ['Regional Banks'])
+        self.assertEqual(s['catalysts'][0]['name'], 'Power & nuclear')
+
+    def test_scanner_explicitly_requests_usd_without_converting_quote_prices(self):
+        values = {'symbol': '005930', 'name': 'Samsung Electronics', 'price': 70000,
+                  'currency': 'KRW', 'avgVolume': 20000, 'marketCapUsd': 1_000_000_000}
+        response = {'totalCount': 1, 'data': [{'s': 'KRX:005930', 'd': [values.get(k) for k in scan.FIELDS]}]}
+        with patch.object(scan, 'fetch', return_value=response) as fetch:
+            result = scan.scan_country('KR')
+        payload = fetch.call_args.args[1]
+        self.assertEqual(payload['price_conversion'], {'to_currency': 'usd'})
+        self.assertEqual(payload['options']['lang'], 'en')
+        stock = result['stocks'][0]
+        self.assertEqual(stock['marketCapUsd'], 1_000_000_000)
+        self.assertEqual(stock['marketCapCurrency'], 'USD')
+        self.assertEqual(stock['price'], 70000)
+        self.assertEqual(stock['currency'], 'KRW')
 
     def test_nasdaq_non_open_market_acquisitions_are_not_buys(self):
         rows = [{'insider': 'Director', 'transactionType': kind, 'sharesTraded': '1,000', 'lastPrice': price, 'lastDate': '9/04/2026'}

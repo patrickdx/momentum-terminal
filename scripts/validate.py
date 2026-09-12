@@ -7,7 +7,7 @@ root = Path(__file__).resolve().parents[1] / 'site'
 for asset in ('index.html', 'app.js', 'style.css', 'favicon.svg', 'data/latest.json', 'data/history.json', 'data/recent.json'):
     assert (root / asset).is_file(), f'Missing asset: {asset}'
 data = json.loads((root / 'data/latest.json').read_text())
-assert data['schemaVersion'] == 1
+assert data['schemaVersion'] == 2
 assert set(data['markets']) == {'US', 'CA', 'KR'}
 for country, market in data['markets'].items():
     seen = set()
@@ -18,6 +18,10 @@ for country, market in data['markets'].items():
         assert s['price'] > 0 and math.isfinite(s['price'])
         assert s['score'] is None or 0 <= s['score'] <= 100
         assert s['score'] is None or s['coverage'] >= 70
+        if market['status'] == 'ok':
+            assert s['marketCapCurrency'] == 'USD'
+            assert s['marketCapUsd'] is None or s['marketCapUsd'] > 0
+            assert s['themes'] == [s.get('industry') or 'Unclassified']
         for news in s['news']:
             assert news['url'].startswith('https://')
 assert isinstance(json.loads((root / 'data/history.json').read_text()), list)
