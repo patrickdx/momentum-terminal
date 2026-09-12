@@ -101,7 +101,7 @@ def score_stocks(stocks):
         s['setup'] = ('Extended' if number(s['extension']) and s['extension'] > 15 else
                       'Near breakout' if number(s.get('nearHigh')) and s['nearHigh'] >= .97 and (s.get('rvol') or 0) >= 1.3 else
                       'Trending' if (s.get('trend') or 0) >= 66 and (s.get('month') or 0) > 0 else 'Mixed')
-    stocks.sort(key=lambda s: s['score'] if s['score'] is not None else -1, reverse=True)
+    stocks.sort(key=lambda s: (-(s['score'] if s['score'] is not None else -1), s.get('id', '')))
     for i, s in enumerate(stocks):
         s['rank'] = i + 1 if s['score'] is not None else None
     return stocks
@@ -115,8 +115,19 @@ def scan_country(country):
                            {'left': 'typespecs', 'operation': 'has', 'right': ['common']}],
                'columns': COLUMNS, 'sort': {'sortBy': 'market_cap_basic', 'sortOrder': 'desc'}, 'range': [0, 5000]}
     response = fetch(f'https://scanner.tradingview.com/{COUNTRIES[country]}/scan', payload)
+    # Page through the complete common-share universe, with a defensive 20,000-row ceiling.
+    for offset in range(5000, min(response.get('totalCount', 0), 20000), 5000):
+        time.sleep(.3)
+        page = fetch(f'https://scanner.tradingview.com/{COUNTRIES[country]}/scan', {**payload, 'range': [offset, offset + 5000]})
+        if not page.get('data'):
+            raise RuntimeError('Incomplete scanner pagination')
+        response['data'].extend(page['data'])
     records = []
+    seen = set()
     for row in response.get('data', []):
+        if row['s'] in seen:
+            continue
+        seen.add(row['s'])
         s = dict(zip(FIELDS, row['d']))
         s.update(id=row['s'], country=country)
         if not number(s.get('price')) or s['price'] <= 0 or not number(s.get('avgVolume')):
@@ -135,7 +146,7 @@ def scan_country(country):
     if not records:
         raise RuntimeError('Scanner returned no eligible stocks; previous snapshot preserved.')
     return {'country': country, 'asOf': now(), 'status': 'ok', 'universe': response.get('totalCount'),
-            'truncated': response.get('totalCount', 0) > 5000, 'turnoverFloor': floor, 'stocks': score_stocks(records)}
+            'truncated': response.get('totalCount', 0) > 20000, 'turnoverFloor': floor, 'stocks': score_stocks(records)}
 
 
 def news_for(s):
@@ -263,7 +274,10 @@ def tag_stock(s):
     tags, evidence = [], []
     for theme, keywords in THEMES.items():
         match = next((k for k in keywords if k in base), None)
-        headlines = [n for n in s.get('news', []) if any(k in n['title'].lower() for k in keywords)]
+        # Publisher names such as Yahoo Finance are not evidence of a financials narrative.
+        headlines = [n for n in s.get('news', []) if any(
+            re.search(r'(?<!\w)' + re.escape(k) + r'(?!\w)', n['title'].rsplit(' - ', 1)[0].lower())
+            for k in keywords if k not in ('finance', 'consumer', 'industrial', 'internet', 'banks'))]
         curated = theme in OVERRIDES.get(s['id'], [])
         if match or headlines or curated:
             tags.append(theme)

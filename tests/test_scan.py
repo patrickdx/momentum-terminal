@@ -60,6 +60,12 @@ class MomentumTests(unittest.TestCase):
         self.assertEqual(s['themes'], ['Other'])
         self.assertEqual(s['themeEvidence'], [])
 
+    def test_news_publisher_is_not_company_theme_evidence(self):
+        s = {'id': 'TEST:X', 'name': 'Example retailer', 'sector': 'Retail Trade', 'industry': 'Apparel',
+             'news': [{'title': 'Example retailer reports sales - Yahoo Finance'}]}
+        scan.tag_stock(s)
+        self.assertNotIn('Financials', s['themes'])
+
 
 if __name__ == '__main__':
     unittest.main()

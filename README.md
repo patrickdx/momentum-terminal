@@ -36,7 +36,7 @@ Theme membership combines industry/company keywords, an explicit mapping of sele
 | Korea DART | Officer/major-holder ownership reports | Needs a DART API key. Reported holdings changes are not asserted to be market trades. |
 | Canada SEDI / SEDAR+ | Official lookup links | No automated Canadian transaction feed is connected. |
 
-Country means **listing market**, not issuer domicile. The scanner requests primary common shares, up to 5,000 source records per country, then applies approximate turnover floors of 1 million US, 250 thousand Canadian, and 500 million Korean in the listing's own quote currency. Turnover is price × 10-day average share volume. No cross-currency conversion or comparison is implied. A source-count warning is shown if the cap truncates the universe.
+Country means **listing market**, not issuer domicile. The scanner requests primary common shares, up to 20,000 source records per country, then applies approximate turnover floors of 1 million US, 250 thousand Canadian, and 500 million Korean in the listing's own quote currency. Turnover is price × 10-day average share volume. No cross-currency conversion or comparison is implied. A source-count warning is shown if the cap truncates the universe.
 
 Every market keeps its own collection timestamp and failure state. Failed market scans retain previous data; an all-source or partial market failure still deploys visible stale/unavailable status and then marks the workflow failed. Snapshots older than 36 hours display a warning, including weekends. Source enrichment failures are separate from market collection status.
 
