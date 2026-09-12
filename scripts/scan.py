@@ -25,10 +25,10 @@ COLUMNS = ['name', 'description', 'close', 'change', 'volume', 'Perf.W', 'Perf.1
            'Perf.3M', 'relative_volume_10d_calc', 'SMA20', 'SMA50', 'SMA200',
            'price_52_week_high', 'market_cap_basic', 'sector', 'industry', 'currency',
            'RSI', 'earnings_release_next_date', 'price_earnings_ttm',
-           'total_revenue_yoy_growth_ttm', 'average_volume_10d_calc', 'exchange']
+           'total_revenue_yoy_growth_ttm', 'average_volume_10d_calc', 'exchange', 'logoid']
 FIELDS = ['symbol', 'name', 'price', 'day', 'volume', 'week', 'month', 'quarter',
           'rvol', 'sma20', 'sma50', 'sma200', 'high52', 'marketCapUsd', 'sector',
-          'industry', 'currency', 'rsi', 'earnings', 'pe', 'revenueGrowth', 'avgVolume', 'exchange']
+          'industry', 'currency', 'rsi', 'earnings', 'pe', 'revenueGrowth', 'avgVolume', 'exchange', 'logoId']
 WEIGHTS = {'month': 25, 'quarter': 25, 'week': 15, 'rvol': 15, 'trend': 10, 'nearHigh': 10}
 THEMES = {
     'AI & semiconductors': ['semiconductor', 'artificial intelligence', 'data center', 'datacenter', 'hbm', 'gpu', '반도체', '인공지능'],
