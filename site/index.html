@@ -7,8 +7,9 @@
   <meta name="description" content="A daily momentum research terminal for US, Canadian and Korean stocks. Follow price strength, developing market themes, news and filings.">
   <title>VECTOR — Momentum Terminal</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./style.css?v=4">
-  <script src="./app.js?v=4" type="module"></script>
+  <link rel="stylesheet" href="./style.css?v=5">
+  <script src="./vendor/echarts/echarts-6.0.0.min.js" defer></script>
+  <script src="./app.js?v=5" type="module"></script>
 </head>
 <body>
   <header class="topbar">
@@ -29,9 +30,11 @@
       <div id="signal-status" class="signal-status" role="status"></div><div class="research-workspace"><div class="table-panel"><div class="table-scroll"><table><thead><tr><th><span class="sr-only">Watch</span></th><th><button data-sort="rank">#</button></th><th><button data-sort="name">Company</button></th><th><button data-sort="industry">Industry</button></th><th><button data-sort="marketCapUsd">Market cap <span class="muted">USD</span></button></th><th><button data-sort="score">Momentum ↓</button></th><th><button data-sort="repeatCount">Repeat signals</button></th><th><button data-sort="price">Price</button></th><th><button data-sort="day">1D</button></th><th><button data-sort="week">1W</button></th><th><button data-sort="month">1M</button></th><th><button data-sort="quarter">3M</button></th><th><button data-sort="rvol">Rel. vol.</button></th><th>Setup</th></tr></thead><tbody id="stocks-body"><tr><td colspan="14" class="empty">Loading the latest market snapshot…</td></tr></tbody></table></div><div class="table-footer"><span id="pagination-label"></span><div><button id="prev-page" aria-label="Previous page">←</button><button id="next-page" aria-label="Next page">→</button></div></div></div><aside id="stock-detail" class="stock-detail" aria-label="Stock intelligence"><div class="empty">Select a company to explore its chart and research.</div></aside></div>
     </section>
     <section id="radar-view" hidden>
-      <div class="workspace-title radar-heading"><div><div class="eyebrow">INDUSTRY RADAR</div><h2>Industry momentum & breadth.</h2><p>The 10 strongest industries with at least 3 scored stocks in your selected market-cap universe.</p></div><label class="cap-filter">Market cap <select id="radar-cap" aria-label="Radar minimum market cap in USD"><option value="1000000000">US$1B+</option><option value="2000000000">US$2B+</option><option value="10000000000">US$10B+</option><option value="50000000000">US$50B+</option><option value="0">Any market cap</option></select></label></div>
-      <div class="bubble-caption"><span>Up = stronger momentum · right = more stocks in trend · size = stock count</span><span>Click a bubble or legend to screen its stocks ↗</span></div>
-      <div id="radar-chart" class="radar-chart"></div><div id="theme-grid" class="theme-grid"></div>
+      <div class="workspace-title radar-heading"><div><div class="eyebrow">INDUSTRY RADAR</div><h2>Industry momentum & breadth.</h2><p>Every industry in your selected market-cap universe, including industries with one or two stocks.</p></div><label class="cap-filter">Market cap <select id="radar-cap" aria-label="Radar minimum market cap in USD"><option value="1000000000">US$1B+</option><option value="2000000000">US$2B+</option><option value="10000000000">US$10B+</option><option value="50000000000">US$50B+</option><option value="0">Any market cap</option></select></label></div>
+      <div class="bubble-caption"><span>Up = stronger momentum · right = more stocks in trend · size = stock count</span><span>Hover for details · click to screen stocks · Ctrl + scroll or use sliders to zoom</span></div>
+      <div class="radar-tools"><label class="search"><span aria-hidden="true">⌕</span><input id="radar-search" type="search" placeholder="Find an industry…" aria-label="Search industries in bubble chart"></label><label class="radar-label-toggle"><input id="radar-labels" type="checkbox"> Show labels</label><button id="radar-reset" class="small-button">Reset zoom</button><span id="radar-count" role="status"></span></div>
+      <div class="radar-shell"><div id="radar-chart" class="radar-chart" aria-label="Interactive industry momentum bubble chart"></div><aside class="radar-legend-panel" aria-label="All industries in the chart"><div class="radar-legend-heading">INDUSTRIES <span>Momentum / stocks</span></div><div id="radar-legend"></div></aside></div>
+      <p class="radar-explanation">Each bubble is one industry. Small groups remain visible; hover to see their sample size. Search isolates matching industries without shifting their coordinates. Overlapping bubbles are individually accessible from the list. <a href="https://echarts.apache.org/" target="_blank" rel="noopener noreferrer">Chart: Apache ECharts</a></p><div id="theme-grid" class="theme-grid"></div>
     </section>
     <footer><span><b>VECTOR</b> <span class="muted">/</span> Independent market research</span><span id="footer-coverage">Snapshots are delayed/as available. Scores are research signals, not recommendations.</span></footer>
   </main>

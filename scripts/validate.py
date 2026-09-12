@@ -5,7 +5,7 @@ from signals import summarize
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1] / 'site'
-for asset in ('index.html', 'app.js', 'style.css', 'favicon.svg', 'data/latest.json', 'data/history.json', 'data/recent.json', 'data/signals.json'):
+for asset in ('index.html', 'app.js', 'style.css', 'favicon.svg', 'vendor/echarts/echarts-6.0.0.min.js', 'vendor/echarts/LICENSE', 'vendor/echarts/NOTICE', 'data/latest.json', 'data/history.json', 'data/recent.json', 'data/signals.json'):
     assert (root / asset).is_file(), f'Missing asset: {asset}'
 data = json.loads((root / 'data/latest.json').read_text())
 assert data['schemaVersion'] == 2
