@@ -154,7 +154,7 @@ async function loadData() {
     const data=await response.json();
     if(data.schemaVersion!==1||!data.markets)throw Error('Snapshot format is unsupported');
     state.data=data;
-    try {const r=await fetch(new URL('./data/history.json',import.meta.url),{cache:'no-store'});state.history=r.ok?await r.json():[];}catch{state.history=[];}
+    try {const r=await fetch(new URL('./data/recent.json',import.meta.url),{cache:'no-store'});state.history=r.ok?await r.json():[];}catch{state.history=[];}
     renderMarket();
   } catch(error) {
     $('#notice').hidden=false;$('#notice').textContent=`Could not load the daily snapshot. ${error.message}. Try Refresh data.`;

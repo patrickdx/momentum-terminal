@@ -41,7 +41,7 @@ Country means **listing market**, not issuer domicile. The scanner requests prim
 
 Every market keeps its own collection timestamp and failure state. Failed market scans retain previous data; an all-source or partial market failure still deploys visible stale/unavailable status and then marks the workflow failed. Snapshots older than 36 hours display a warning, including weekends. Source enrichment failures are separate from market collection status.
 
-History is retained for up to 90 successful full-market scan days in `site/data/history.json`. One record per UTC day is retained; a rerun replaces that day's record. A partial-market run is not used as a full-day comparison baseline. Historical scores are not reconstructed or backtested.
+History is retained for up to 90 successful full-market scan days in `site/data/history.json`. One record per UTC day is retained; a rerun replaces that day's record. A partial-market run is not used as a full-day comparison baseline. Historical scores are not reconstructed or backtested. The interface downloads only a compact seven-day score trail in `recent.json`, keeping load size bounded as the archive grows.
 
 ## Configure extra coverage
 

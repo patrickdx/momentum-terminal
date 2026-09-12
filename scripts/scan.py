@@ -460,6 +460,12 @@ def main():
     if not failed:
         history = [h for h in history if h['date'] != today] + [day_record]
         write_json(history_file, history[-90:])
+    elif not history_file.exists():
+        write_json(history_file, [])
+    # The browser needs only a short score trail. Do not download the full 90-day archive on every visit.
+    write_json(DATA / 'recent.json', [{'date': h['date'], 'stocks': {
+        symbol: {'score': record.get('score'), 'rank': record.get('rank')}
+        for symbol, record in h['stocks'].items()}} for h in history[-7:]])
     write_json(DATA / 'latest.json', snapshot)
     print('Snapshot saved:', snapshot['generatedAt'], flush=True)
     if failed:

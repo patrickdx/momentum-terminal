@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1] / 'site'
-for asset in ('index.html', 'app.js', 'style.css', 'favicon.svg', 'data/latest.json', 'data/history.json'):
+for asset in ('index.html', 'app.js', 'style.css', 'favicon.svg', 'data/latest.json', 'data/history.json', 'data/recent.json'):
     assert (root / asset).is_file(), f'Missing asset: {asset}'
 data = json.loads((root / 'data/latest.json').read_text())
 assert data['schemaVersion'] == 1
