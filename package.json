@@ -1,0 +1,11 @@
+{
+  "name": "vector-momentum-terminal",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 4173 --directory site",
+    "scan": "python3 scripts/scan.py",
+    "test": "python3 -m unittest discover -s tests -v && node --check site/app.js"
+  }
+}
