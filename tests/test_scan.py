@@ -66,6 +66,18 @@ class MomentumTests(unittest.TestCase):
         scan.tag_stock(s)
         self.assertNotIn('Financials', s['themes'])
 
+    def test_nasdaq_non_open_market_acquisitions_are_not_buys(self):
+        rows = [{'insider': 'Director', 'transactionType': kind, 'sharesTraded': '1,000', 'lastPrice': price, 'lastDate': '9/04/2026'}
+                for kind, price in [('Sell', '$12.50'), ('Automatic Sell', '$0.00'), ('Acquisition (Non Open Market)', '$0.00')]]
+        result = scan.parse_nasdaq_insiders({'transactionTable': {'table': {'rows': rows}}}, 'TEST')
+        tx = result['transactions']
+        self.assertEqual(tx[0]['value'], 12500)
+        self.assertEqual(tx[1]['type'], 'Automatic Sell')
+        self.assertIsNone(tx[1]['value'])
+        self.assertEqual(tx[2]['side'], 'other')
+        self.assertIsNone(tx[2]['code'])
+        self.assertEqual(tx[0]['date'], '2026-09-04')
+
 
 if __name__ == '__main__':
     unittest.main()

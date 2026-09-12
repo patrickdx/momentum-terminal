@@ -222,6 +222,42 @@ def parse_form4(xml, url):
     return rows
 
 
+def parse_nasdaq_insiders(data, symbol):
+    table = (data.get('transactionTable') or {}).get('table') or {}
+    rows = []
+    def numeric(value):
+        try:
+            n = float(str(value).replace(',', '').replace('$', ''))
+            return n if math.isfinite(n) else None
+        except (ValueError, TypeError):
+            return None
+    url = f'https://www.nasdaq.com/market-activity/stocks/{urllib.parse.quote(symbol.lower())}/insider-activity'
+    for record in table.get('rows') or []:
+        label = record.get('transactionType', 'Unknown')
+        # Nasdaq labels are preserved verbatim; they are not SEC transaction codes.
+        side = 'sell' if label in ('Sell', 'Automatic Sell') else 'buy' if label in ('Buy', 'Purchase') else 'other'
+        shares, price = numeric(record.get('sharesTraded')), numeric(record.get('lastPrice'))
+        price = price if price is not None and price > 0 else None
+        try:
+            date = datetime.strptime(record['lastDate'], '%m/%d/%Y').date().isoformat()
+        except (ValueError, KeyError):
+            date = None
+        rows.append({'owner': record.get('insider', 'Unknown'), 'relation': record.get('relation'),
+                     'date': date, 'type': label, 'code': None, 'side': side, 'shares': shares, 'price': price,
+                     'value': shares * price if shares is not None and price is not None else None,
+                     'url': url})
+    return {'status': 'Up to 15 recent reported transactions from Nasdaq. Automatic sales and non-open-market acquisitions keep their source labels; missing/zero prices are not valued.',
+            'source': 'Nasdaq insider activity', 'asOf': now(), 'transactions': rows[:15], 'filings': [], 'url': url}
+
+
+def nasdaq_for(s):
+    url = f'https://api.nasdaq.com/api/company/{urllib.parse.quote(s["symbol"])}/insider-trades?limit=15&type=all&sortColumn=lastDate&sortOrder=DESC'
+    response = fetch(url, headers={'Origin': 'https://www.nasdaq.com'})
+    if not isinstance(response.get('data'), dict):
+        raise RuntimeError('No Nasdaq insider dataset available')
+    return parse_nasdaq_insiders(response['data'], s['symbol'])
+
+
 def sec_for(s, cik, agent):
     headers = {'User-Agent': agent}
     time.sleep(.22)
@@ -355,6 +391,11 @@ def main():
                 s['newsStatus'] = f'News source unavailable ({type(e).__name__}).'
             s['chart'] = chart_for(s)
             s['chartStatus'] = 'Yahoo Finance daily closes; unadjusted, may differ from scanner.' if s['chart'] else 'Historical price source unavailable.'
+            if s['country'] == 'US':
+                try:
+                    s['insider'] = nasdaq_for(s)
+                except Exception:
+                    s['insider']['status'] = 'Nasdaq insider source unavailable for this issuer during this scan.'
         with ThreadPoolExecutor(max_workers=4) as executor:
             futures = [executor.submit(enrich, s) for s in selected]
             for future in as_completed(futures):
@@ -377,15 +418,20 @@ def main():
         for s in selected:
             try:
                 if s['country'] == 'US' and s['symbol'] in ciks:
-                    s['insider'] = sec_for(s, ciks[s['symbol']], sec_agent)
+                    sec = sec_for(s, ciks[s['symbol']], sec_agent)
+                    if sec['transactions'] or not s['insider'].get('transactions'):
+                        s['insider'] = sec
+                    else:
+                        s['insider']['filings'] = sec['filings']
                 elif s['country'] == 'KR' and s['symbol'] in codes:
                     s['insider'] = dart_for(s, codes[s['symbol']], key)
             except Exception:
-                s['insider']['status'] = 'Filings source unavailable during this scan.'
+                s['insider']['status'] += ' Additional filings source unavailable during this scan.'
     snapshot['sources'] = [
         {'name': 'TradingView scanner', 'status': 'Partial failure' if failed else 'Connected', 'detail': 'Primary common stocks; delayed/as available snapshots. Unofficial, unsupported scanner interface.', 'url': 'https://www.tradingview.com/screener/'},
         {'name': 'Google News RSS', 'status': 'Best effort', 'detail': f'Top {args.enrich} per market + configured focus symbols. Headlines and links only; keyword matching is not causal analysis.', 'url': 'https://news.google.com/'},
         {'name': 'Yahoo Finance', 'status': 'Best effort', 'detail': 'Six months of daily closes for enriched symbols. Historical prices may use a different venue or timestamp.', 'url': 'https://finance.yahoo.com/'},
+        {'name': 'Nasdaq insider activity', 'status': 'Best effort', 'detail': 'Up to 15 recent reported insider transactions for enriched US symbols; original source transaction labels retained. No API key required.', 'url': 'https://www.nasdaq.com/market-activity/insiders'},
         {'name': 'SEC EDGAR', 'status': 'Configured' if os.getenv('SEC_USER_AGENT') else 'Setup required', 'detail': 'Set SEC_USER_AGENT with your name and contact email in repository secrets. Bounded US Form 4 transactions and issuer filings.', 'url': 'https://www.sec.gov/edgar/search/'},
         {'name': 'Korea DART', 'status': 'Configured' if os.getenv('DART_API_KEY') else 'API key required', 'detail': 'Set DART_API_KEY in repository secrets for officer/major-holder ownership reports.', 'url': 'https://opendart.fss.or.kr/'},
         {'name': 'Canada SEDI / SEDAR+', 'status': 'External lookup', 'detail': 'Official insider and issuer disclosure links. No automated Canadian insider feed is connected.', 'url': 'https://www.sedi.ca/'}]
