@@ -110,6 +110,7 @@ function selectStock(id) {
 function renderDetail() {
   const s=currentStock();if(!s)return;
   $('#stock-detail').innerHTML=`<div class="detail-head"><div class="stock-identity"><div><h2 class="detail-symbol">${esc(s.symbol)} <span>${esc(s.exchange)}</span></h2><div class="detail-name">${esc(s.name)}</div><div class="detail-tags"><span class="pill">${esc(s.industry||'Unclassified')}</span>${(s.narratives??[]).map(t=>`<span class="pill narrative">${esc(t)}</span>`).join('')}</div></div><div class="stock-price-block"><div class="detail-price">${num(s.price,s.currency==='KRW'?0:2)} <span class="muted">${esc(s.currency)}</span><span class="${tone(s.day)}">${pct(s.day)}</span></div><div class="muted">Market cap ${finite(s.marketCapUsd)?'US$'+compact(s.marketCapUsd):'unavailable'}</div></div><button class="star ${state.watchlist.has(s.id)?'on':''}" data-star="${esc(s.id)}" aria-label="Toggle ${esc(s.symbol)} watchlist" aria-pressed="${state.watchlist.has(s.id)}">${state.watchlist.has(s.id)?'★':'☆'}</button></div></div><div class="stock-popup-layout"><section class="stock-chart-panel" aria-label="TradingView price chart"><div id="tradingview-chart" class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div><div class="tradingview-widget-copyright">${link('https://www.tradingview.com/chart/?symbol='+encodeURIComponent(s.id),s.symbol+' chart by TradingView ↗','text-button')}</div></div><p class="chart-disclosure">Interactive TradingView chart · exchange availability and delays apply. ${link('https://www.tradingview.com/chart/?symbol='+encodeURIComponent(s.id),'Open full chart ↗','text-button')}</p></section><section class="stock-research-panel"><div class="detail-tabs" role="tablist" aria-label="Stock research tabs">${[['overview','Overview'],['story','Story & news'],['insider','Insiders']].map(([id,label])=>`<button role="tab" aria-selected="${state.detailTab===id}" class="${state.detailTab===id?'active':''}" data-detail-tab="${id}">${label}</button>`).join('')}</div><div class="detail-content"></div></section></div>`;
+  $('#stock-detail').classList.toggle('external-only',s.country==='KR');
   renderResearch(s);
 }
 function renderResearch(s=currentStock()) {
@@ -122,6 +123,11 @@ function renderResearch(s=currentStock()) {
 function mountChart(s) {
   if(!s)return;
   const host=$('#tradingview-chart');
+  if(s.country==='KR'){
+    const url='https://www.tradingview.com/chart/?symbol='+encodeURIComponent(s.id);
+    $('#stock-detail .stock-chart-panel').innerHTML=`<div class="external-chart-copy"><div><div class="eyebrow">TRADINGVIEW / KOREA</div><h3>Open the full chart on TradingView</h3><p>Embedded access is restricted for this market. The full chart opens in a new tab; company research stays here.</p></div>${link(url,'Open '+s.symbol+' chart ↗','chart-open-button')}</div>`;
+    return;
+  }
   const script=document.createElement('script');script.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';script.async=true;
   script.textContent=JSON.stringify({autosize:true,symbol:s.id,interval:'D',timezone:'Etc/UTC',theme:'dark',style:'1',locale:'en',backgroundColor:'#111519',gridColor:'rgba(146,157,165,0.08)',allow_symbol_change:false,hide_side_toolbar:false,hide_top_toolbar:false,hide_volume:false,withdateranges:true,save_image:true,calendar:false,details:false,support_host:'https://www.tradingview.com'});
   script.onerror=()=>{if(host.isConnected)host.querySelector('.tradingview-widget-container__widget').innerHTML='<div class="empty">TradingView could not load. Use the full-chart link below.</div>';};
